@@ -12,6 +12,8 @@
 #define PIN_CS PICO_DEFAULT_SPI_CSN_PIN
 #define LED_MODS 4
 
+led disp;
+
 // button handling
 #define PIN_BTN_L 21
 #define PIN_BTN_R 20
@@ -65,37 +67,156 @@ void wait_any_button() {
 #define WIDTH (LED_MODS*8)
 #define HEIGHT 8
 #define AREA (WIDTH*HEIGHT)
+#define FRAMETIME 16666
+#define SPEED 6
+#define SLEEPTIME (SPEED*FRAMETIME)
 
 uint16_t body[AREA];
 size_t bodylen;
 size_t bodypos;
 uint8_t snake_x;
 uint8_t snake_y;
+uint8_t snake_dir;
 uint8_t food_x;
 uint8_t food_y;
+uint8_t bodyhit = false;
 
 uint16_t setword(uint8_t x, uint8_t y) {
-	return x<<8 | y;
+	return ((uint16_t)x<<8) | y;
 }
 
 void getword(uint16_t word, uint8_t *x, uint8_t *y) {
-	*x = word>>8 & 0xF;
-	*y = word    & 0xF;
+	*x = (word>>8) & 0xFF;
+	*y = (word)    & 0xFF;
+}
+
+void put_food() {
+	food_x = 0;
+	food_y = 0;
+}
+
+// call a function for each body segment
+// the callback must return true to continue or false to exit early
+// the function also has a generic output parameter
+// for returning more data
+void each_body(bool (*fn)(uint8_t, uint8_t)) {
+	int i, idx;
+	uint8_t x, y;
+	for(i = 0; i < bodylen; i++) {
+		idx = bodypos - i;
+		if(idx < 0) {
+			idx += AREA;
+		}
+		getword(body[idx], &x, &y);
+		fn(x, y);
+	}
+}
+
+bool draw_body(uint8_t x, uint8_t y) {
+	led_put(&disp, x, y, 1);
+	return true;
+}
+
+bool test_collision(uint8_t x, uint8_t y) {
+	if(snake_x==x && snake_y==y) {
+		bodyhit = true;
+	}
+	else {
+		bodyhit = false;
+	}
+	return !bodyhit;
 }
 
 void init_game() {
 	bodypos = 0;
 	bodylen = 1;
-	snake_x = WIDTH/2;
+	snake_x = WIDTH/2-1;
 	snake_y = HEIGHT/2;
+	snake_dir = 0;
+	bodyhit = false;
 	body[bodypos] = setword(snake_x, snake_y);
 
-	food_x = 0;
-	food_y = 0;
+	put_food();
 }
 
 void run_game() {
+	int frames = 0;
 
+	while(true) {
+		frames++;
+
+		// # READ BUTTONS #
+		if(test_right_button()) {
+			snake_dir++;
+			if(snake_dir == 4) {
+				snake_dir = 0;
+			}
+		}
+		if(test_left_button()) {
+			snake_dir--;
+			if(snake_dir == 255) {
+				snake_dir = 3;
+			}
+		}
+
+		// # FRAME SLEEP #
+		sleep_us(FRAMETIME);
+		if(frames < SPEED) {
+			continue;
+		}
+
+		// # GAME LOGIC #
+		// move snake
+		switch(snake_dir) {
+			case 0:
+				snake_x++;
+				break;
+			case 1:
+				snake_y++;
+				break;
+			case 2:
+				snake_x--;
+				break;
+			case 3:
+				snake_y--;
+				break;
+			default:
+				break;
+		}
+		// out of bounds
+		if(snake_x==255 || snake_x>=WIDTH || snake_y==255 || snake_y>=HEIGHT) {
+			break;
+		}
+		// eating
+		if(snake_x==food_x && snake_y==food_y) {
+			bodylen++;
+			put_food();
+		}
+		// check body collision
+		each_body(test_collision);
+		if(bodyhit) {break;}
+		// update body
+		bodypos++;
+		if(bodypos >= AREA) {
+			bodypos = 0;
+		}
+		body[bodypos] = setword(snake_x, snake_y);
+
+		// # RENDER #
+		led_clear(&disp, false);
+		// draw body
+		each_body(draw_body);
+		// draw food
+		led_put(&disp, food_x, food_y, 2);
+		led_render(&disp);
+
+		frames = 0;
+	}
+
+	// death
+	led_fill(&disp, 0, 0, WIDTH, HEIGHT, 2);
+	led_render(&disp);
+	wait_any_button();
 }
 
 int main() {
@@ -122,7 +243,7 @@ int main() {
 	spi_init(spi_default, 1000000);
 	sleep_ms(100);
 
-	led disp = led_init(spi_default, PIN_CS, LED_MODS, false, LED_DEFAULT_FONT);
+	disp = led_init(spi_default, PIN_CS, LED_MODS, false, LED_DEFAULT_FONT);
 
 	while(true) {
 		init_game();
