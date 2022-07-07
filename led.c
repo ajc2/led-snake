@@ -174,7 +174,7 @@ int led_put_str(led *led, size_t x, size_t y, unsigned char *str, size_t len, ui
 	size_t i;
 
 	for(i = 0; i < len; i++) {
-		led_put_chr(led, x+i*4, y, str[i], state);
+		led_put_char(led, x+i*4, y, str[i], state);
 	}
 
 	return 0;
