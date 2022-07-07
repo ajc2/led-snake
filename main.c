@@ -4,12 +4,14 @@
 #include "pico/stdlib.h"
 #include "pico/malloc.h"
 #include "hardware/spi.h"
+#include "hardware/adc.h"
 
 #include "./led.c"
 
 #define PIN_TX PICO_DEFAULT_SPI_TX_PIN
 #define PIN_CLK PICO_DEFAULT_SPI_SCK_PIN
 #define PIN_CS PICO_DEFAULT_SPI_CSN_PIN
+#define PIN_ADC 26
 #define LED_MODS 4
 
 led disp;
@@ -67,7 +69,7 @@ void wait_any_button() {
 #define WIDTH (LED_MODS*8)
 #define HEIGHT 8
 #define AREA (WIDTH*HEIGHT)
-#define FRAMETIME 16666
+#define FRAMETIME 16667
 #define SPEED 6
 #define SLEEPTIME (SPEED*FRAMETIME)
 
@@ -91,8 +93,8 @@ void getword(uint16_t word, uint8_t *x, uint8_t *y) {
 }
 
 void put_food() {
-	food_x = 0;
-	food_y = 0;
+	food_x = rand() % WIDTH;
+	food_y = rand() % HEIGHT;
 }
 
 // call a function for each body segment
@@ -238,6 +240,19 @@ int main() {
 	gpio_init(PIN_BTN_R);
 	gpio_set_dir(PIN_BTN_R, GPIO_IN);
 	gpio_pull_up(PIN_BTN_R);
+	// ADC for PRNG seed
+	adc_init();
+	adc_gpio_init(PIN_ADC);
+	adc_select_input(0);
+
+	// seed PRNG
+	unsigned int seed;
+	int i;
+	for(i = 0; i < 15; i++) {
+		uint16_t bits = adc_read() & 0xFF;
+		seed = (seed<<4) ^ bits;
+	}
+	srand(seed);
 
 	// 1MHz
 	spi_init(spi_default, 1000000);
@@ -247,6 +262,7 @@ int main() {
 
 	while(true) {
 		init_game();
+		led_clear(&disp, false);
 		led_put_str(&disp, 6, 1, "PRESS", 5, 1);
 		led_render(&disp);
 		wait_any_button();

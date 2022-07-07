@@ -12,4 +12,4 @@ add_executable(led_snake main.c)
 pico_enable_stdio_uart(led_snake 1)
 pico_add_extra_outputs(led_snake)
 
-target_link_libraries(led_snake pico_stdlib hardware_spi pico_time pico_malloc)
+target_link_libraries(led_snake pico_stdlib hardware_spi hardware_adc pico_time pico_malloc)
