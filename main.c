@@ -110,7 +110,7 @@ void each_body(bool (*fn)(uint8_t, uint8_t)) {
 			idx += AREA;
 		}
 		getword(body[idx], &x, &y);
-		fn(x, y);
+		if(!fn(x, y)) {break;}
 	}
 }
 
