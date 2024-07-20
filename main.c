@@ -60,7 +60,7 @@ bool test_any_button() {
 }
 
 void wait_any_button() {
-	do {} while(!test_any_button());
+	do {tight_loop_contents();} while(!test_any_button());
 }
 
 
